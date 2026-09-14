@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Apollo CR3BP - Orbital Mechanics & Flight Computer</title>
+    <style>
+        body { 
+            margin: 0; 
+            background: #020205; 
+            color: #eceff1; 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace; 
+            overflow: hidden; 
+        }
+        canvas { display: block; }
+
+        /* Telemetri Paneli (Sağ Üst) */
+        #telemetry {
+            position: absolute; top: 20px; right: 20px;
+            background: rgba(10, 15, 25, 0.88); 
+            backdrop-filter: blur(10px);
+            padding: 18px; border-radius: 10px; 
+            border: 1px solid rgba(0, 229, 255, 0.25); 
+            width: 250px; box-shadow: 0 0 25px rgba(0, 0, 0, 0.8);
+            z-index: 10;
+        }
+        .title { 
+            font-size: 13px; letter-spacing: 2px; color: #00e5ff; 
+            font-weight: bold; margin-bottom: 12px; text-transform: uppercase;
+        }
+        .label { color: #78909c; font-size: 11px; margin-top: 6px; }
+        .val { color: #00e676; font-size: 15px; font-weight: bold; font-family: monospace; }
+        
+        button.btn-action {
+            width: 100%; padding: 10px; margin-top: 14px;
+            background: linear-gradient(135deg, #d32f2f, #8e0000); 
+            color: #fff; border: none; border-radius: 6px; 
+            cursor: pointer; font-weight: bold; letter-spacing: 1px;
+            transition: 0.2s;
+        }
+        button.btn-action:hover { opacity: 0.9; box-shadow: 0 0 10px rgba(211, 47, 47, 0.5); }
+
+        /* Teori Butonu (Sol Üst) */
+        #theoryBtn {
+            position: absolute; top: 20px; left: 20px;
+            background: rgba(10, 15, 25, 0.85);
+            border: 1px solid #00e5ff;
+            color: #00e5ff;
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-weight: bold;
+            cursor: pointer;
+            backdrop-filter: blur(8px);
+            transition: 0.3s;
+            z-index: 10;
+        }
+        #theoryBtn:hover {
+            background: #00e5ff;
+            color: #020205;
+            box-shadow: 0 0 15px rgba(0, 229, 255, 0.4);
+        }
+
+        /* Bilgi & Teori Modalı (Overlay) */
+        #modalOverlay {
+            display: none;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(2, 2, 5, 0.75);
+            backdrop-filter: blur(6px);
+            z-index: 100;
+            justify-content: center; align-items: center;
+        }
+        #modalContent {
+            background: #0b0f19;
+            border: 1px solid #1e293b;
+            border-left: 4px solid #00e5ff;
+            width: 85%; max-width: 780px; max-height: 85vh;
+            border-radius: 12px;
+            padding: 25px 30px;
+            overflow-y: auto;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.9);
+        }
+        #modalContent h2 {
+            margin-top: 0; color: #00e5ff; font-size: 20px;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .close-btn {
+            background: none; border: none; color: #94a3b8;
+            font-size: 24px; cursor: pointer;
+        }
+        .close-btn:hover { color: #ff5252; }
+        
+        .theory-section { margin-bottom: 22px; }
+        .theory-section h3 { color: #f8fafc; font-size: 15px; margin-bottom: 6px; border-bottom: 1px solid #1e293b; padding-bottom: 4px; }
+        .theory-section p { color: #94a3b8; font-size: 13px; line-height: 1.6; margin: 6px 0; }
+        .code-math {
+            background: #030712;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-family: monospace;
+            color: #38bdf8;
+            font-size: 12px;
+            border: 1px solid #1e293b;
+            display: block;
+            margin: 6px 0;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Dokümantasyon Butonu -->
+    <button id="theoryBtn" onclick="toggleModal(true)">Fizik & Teori [ ? ]</button>
+
+    <!-- Telemetri Kutusu -->
+    <div id="telemetry">
+        <div class="title">Apollo OBC Telemetri</div>
+        <div class="label">DÜNYA İRTİFASI:</div>
+        <div id="earthAlt" class="val">---</div>
+        <div class="label">AY İRTİFASI:</div>
+        <div id="moonAlt" class="val">---</div>
+        <div class="label">GÖREV ZAMANI:</div>
+        <div id="missionTime" class="val">---</div>
+        <div class="label">DURUM:</div>
+        <div id="status" class="val" style="color: #ffab00;">TLI Transferi</div>
+        <button class="btn-action" onclick="resetMission()">ROTAYI YENİDEN BAŞLAT</button>
+    </div>
+
+    <!-- Matematik & Mühendislik Modal Paneli -->
+    <div id="modalOverlay" onclick="handleBackdropClick(event)">
+        <div id="modalContent">
+            <h2>
+                <span>Apollo Trans-Lunar Uçuş Mekaniği</span>
+                <button class="close-btn" onclick="toggleModal(false)">&times;</button>
+            </h2>
+
+            <div class="theory-section">
+                <h3>1. Dairesel Kısıtlı Üç-Cisim Problemi (CR3BP)</h3>
+                <p>
+                    Uzay aracının kütlesi ($m$), Dünya ($M_E$) ve Ay ($M_M$) yanında ihmal edilebilecek kadar küçüktür. 
+                    Bu nedenle uzay aracı iki ana gök cisminin yörüngesini etkilemezken, onların hareketli çekim potansiyellerinden aynı anda etkilenir. 
+                    Net ivme iki çekim vektörünün toplamıdır:
+                </p>
+                <div class="code-math">
+                    a_net = -μ_E * (r - r_E) / |r - r_E|³ - μ_M * (r - r_M) / |r - r_M|³
+                </div>
+                <p>Burada μ = G * M standart yerçekimi parametresidir (μ_E ≈ 3.986e14 m³/s², μ_M ≈ 4.904e12 m³/s²).</p>
+            </div>
+
+            <div class="theory-section">
+                <h3>2. Ortak Kütle Merkezi (Barycenter) Dinamiği</h3>
+                <p>
+                    Dünya uzayda çakılı değildir. Sistem, Dünya merkezinden yaklaşık 4.671 km uzaklıkta bulunan ortak kütle merkezi etrafında periyodik olarak döner:
+                </p>
+                <div class="code-math">
+                    R_Bary = D_EM * [ M_M / (M_E + M_M) ] ≈ 4,671 km
+                </div>
+                <p>Bu nokta Dünya yarıçapının (6.371 km) altında kaldığı için Dünya kütle merkezi etrafında hafif bir yalpalama (wobble) hareketi sergiler.</p>
+            </div>
+
+            <div class="theory-section">
+                <h3>3. Euler-Cromer Sayısal Entegrasyonu (Symplectic Integration)</h3>
+                <p>
+                    Standart Euler yöntemi yerçekimi kuyularında yapay enerji kazancına yol açarak aracın dışarı kaçmasına neden olur. 
+                    Simülasyonda enerji korunumunu kararlı kılan <strong>Euler-Cromer (Semi-implicit Euler)</strong> algoritması çalışmaktadır:
+                </p>
+                <div class="code-math">
+                    v(t + dt) = v(t) + a(t) * dt<br>
+                    x(t + dt) = x(t) + v(t + dt) * dt   // Güncellenmiş hız ile konum hesabı
+                </div>
+            </div>
+
+            <div class="theory-section">
+                <h3>4. TLI ve Faz Açısı (Phase Angle Lead)</h3>
+                <p>
+                    Dünya'dan ayrılış hızı (Translunar Injection - TLI) yaklaşık <strong>10.83 km/s</strong> olarak hesaplanmıştır. 
+                    Araç 3 günlük transit süresinde hedefe varırken Ay da kendi yörüngesinde yaklaşık 40° ilerler. 
+                    Bu sebeple fırlatma anında Ay, buluşma noktasının gerisinde (3. bölge) konumlandırılmıştır.
+                </p>
+            </div>
+
+            <div class="theory-section">
+                <h3>5. LOI (Lunar Orbit Insertion) Frenlemesi</h3>
+                <p>
+                    Araç Ay'a 9.000 km mesafe kaldığında uçuştaki fazla hiperbolik enerjiyi söndürmek için motorlarını ters yönde (Retrograde) ateşler. 
+                    Hız vektörü Ay'ın dairesel yörünge hızına (v = √(μ_M / r)) kilitlenerek kapalı bir Ay uydusuna dönüştürülür.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <canvas id="simCanvas"></canvas>
+
+    <script>
+        // Modal Kontrolü
+        function toggleModal(show) {
+            document.getElementById('modalOverlay').style.display = show ? 'flex' : 'none';
+        }
+        function handleBackdropClick(e) {
+            if (e.target.id === 'modalOverlay') toggleModal(false);
+        }
+
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let stars = [];
+        function initStars() {
+            stars = [];
+            for (let i = 0; i < 250; i++) {
+                stars.push({
+                    x: Math.random() * window.innerWidth,
+                    y: Math.random() * window.innerHeight,
+                    r: Math.random() * 1.5,
+                    alpha: 0.2 + Math.random() * 0.8
+                });
+            }
+        }
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            initStars();
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Astrodinamik Sabitleri
+        const MuE = 3.986004418e14;
+        const MuM = 4.9048695e12;
+        const R_Earth = 6371000;
+        const R_Moon = 1737400;
+        const DistanceEM = 384400000;
+        const MassEarth = 5.972e24;
+        const MassMoon = 7.342e22;
+        const R_Bary = DistanceEM * (MassMoon / (MassEarth + MassMoon));
+        const Omega = (2.0 * Math.PI) / 2360584.0;
+
+        let simTime = 0;
+        let ship = { x: 0, y: 0, vx: 0, vy: 0 };
+        let earth = { x: 0, y: 0 };
+        let moon = { x: 0, y: 0 };
+        let trail = [];
+        let inLunarOrbit = false;
+        let isBurning = false;
+
+        const PHASE_OFFSET = 3.84;
+
+        function updateBodies(t) {
+            const theta = PHASE_OFFSET + (Omega * t);
+            earth.x = -R_Bary * Math.cos(theta);
+            earth.y = -R_Bary * Math.sin(theta);
+            moon.x = (DistanceEM - R_Bary) * Math.cos(theta);
+            moon.y = (DistanceEM - R_Bary) * Math.sin(theta);
+        }
+
+        function resetMission() {
+            simTime = 0;
+            trail = [];
+            inLunarOrbit = false;
+            isBurning = false;
+            document.getElementById('status').innerText = "TLI Transferi";
+            document.getElementById('status').style.color = "#00e676";
+            updateBodies(0);
+
+            const rStart = R_Earth + 300000;
+            ship.x = earth.x;
+            ship.y = earth.y + rStart;
+            ship.vx = 10832.0;
+            ship.vy = 0.0;
+        }
+        resetMission();
+
+        function physicsStep(dt) {
+            const dxE = ship.x - earth.x, dyE = ship.y - earth.y;
+            const distE = Math.hypot(dxE, dyE);
+            const dxM = ship.x - moon.x, dyM = ship.y - moon.y;
+            const distM = Math.hypot(dxM, dyM);
+
+            if (distE <= R_Earth || distM <= R_Moon) return;
+
+            if (!inLunarOrbit && distM < (R_Moon + 9000000) && simTime > 200000) {
+                const theta = PHASE_OFFSET + (Omega * simTime);
+                const vMoonMag = Omega * (DistanceEM - R_Bary);
+                const vMoonX = -vMoonMag * Math.sin(theta);
+                const vMoonY = vMoonMag * Math.cos(theta);
+
+                const vOrbit = Math.sqrt(MuM / distM);
+                const normalX = -dyM / distM;
+                const normalY = dxM / distM;
+
+                ship.vx = vMoonX + normalX * vOrbit;
+                ship.vy = vMoonY + normalY * vOrbit;
+
+                inLunarOrbit = true;
+                isBurning = true;
+                setTimeout(() => { isBurning = false; }, 2000);
+
+                document.getElementById('status').innerText = "Ay Yörüngesinde (LOI)";
+                document.getElementById('status').style.color = "#00e5ff";
+            }
+
+            const r3E = Math.pow(distE, 3);
+            const axE = -MuE * dxE / r3E;
+            const ayE = -MuE * dyE / r3E;
+
+            const r3M = Math.pow(distM, 3);
+            const axM = -MuM * dxM / r3M;
+            const ayM = -MuM * dyM / r3M;
+
+            ship.vx += (axE + axM) * dt;
+            ship.vy += (ayE + ayM) * dt;
+            ship.x += ship.vx * dt;
+            ship.y += ship.vy * dt;
+
+            simTime += dt;
+            updateBodies(simTime);
+        }
+
+        function drawEarth(x, y, r) {
+            const glow = ctx.createRadialGradient(x, y, r * 0.8, x, y, r * 2.2);
+            glow.addColorStop(0, 'rgba(0, 150, 255, 0.4)');
+            glow.addColorStop(0.5, 'rgba(0, 100, 255, 0.15)');
+            glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(x, y, r * 2.2, 0, Math.PI * 2);
+            ctx.fill();
+
+            const grad = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
+            grad.addColorStop(0, '#4fc3f7');
+            grad.addColorStop(0.5, '#0288d1');
+            grad.addColorStop(1, '#01284d');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(x, y, r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawMoon(x, y, r) {
+            const glow = ctx.createRadialGradient(x, y, r * 0.8, x, y, r * 1.8);
+            glow.addColorStop(0, 'rgba(230, 238, 248, 0.25)');
+            glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(x, y, r * 1.8, 0, Math.PI * 2);
+            ctx.fill();
+
+            const grad = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
+            grad.addColorStop(0, '#eceff1');
+            grad.addColorStop(0.6, '#90a4ae');
+            grad.addColorStop(1, '#37474f');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(x, y, r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        function drawSpacecraft(x, y, angle) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.rotate(angle);
+
+            if (isBurning) {
+                ctx.fillStyle = '#ff7043';
+                ctx.beginPath();
+                ctx.moveTo(-6, 0);
+                ctx.lineTo(-14, -3);
+                ctx.lineTo(-20, 0);
+                ctx.lineTo(-14, 3);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.moveTo(7, 0);
+            ctx.lineTo(-5, -4);
+            ctx.lineTo(-3, 0);
+            ctx.lineTo(-5, 4);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function loop() {
+            for (let i = 0; i < 1000; i++) physicsStep(0.25);
+
+            const scale = (Math.min(canvas.width, canvas.height) * 0.40) / DistanceEM;
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+
+            ctx.fillStyle = '#020205';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            stars.forEach(s => {
+                ctx.fillStyle = `rgba(255, 255, 255, ${s.alpha})`;
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            trail.push({ x: ship.x, y: ship.y });
+            if (trail.length > 3500) trail.shift();
+
+            if (trail.length > 1) {
+                ctx.beginPath();
+                for (let i = 0; i < trail.length - 1; i++) {
+                    const sx = cx + trail[i].x * scale;
+                    const sy = cy - trail[i].y * scale;
+                    const sxNext = cx + trail[i + 1].x * scale;
+                    const syNext = cy - trail[i + 1].y * scale;
+
+                    ctx.strokeStyle = inLunarOrbit ? '#00e5ff' : '#00e676';
+                    ctx.globalAlpha = i / trail.length;
+                    ctx.lineWidth = 1.6;
+
+                    ctx.beginPath();
+                    ctx.moveTo(sx, sy);
+                    ctx.lineTo(sxNext, syNext);
+                    ctx.stroke();
+                }
+                ctx.globalAlpha = 1.0;
+            }
+
+            const ex = cx + earth.x * scale;
+            const ey = cy - earth.y * scale;
+            drawEarth(ex, ey, Math.max(R_Earth * scale, 9));
+
+            const mx = cx + moon.x * scale;
+            const my = cy - moon.y * scale;
+            drawMoon(mx, my, Math.max(R_Moon * scale, 5));
+
+            const sx = cx + ship.x * scale;
+            const sy = cy - ship.y * scale;
+            const angle = Math.atan2(-ship.vy, ship.vx);
+            drawSpacecraft(sx, sy, angle);
+
+            const dE = (Math.hypot(ship.x - earth.x, ship.y - earth.y) - R_Earth) / 1000;
+            const dM = (Math.hypot(ship.x - moon.x, ship.y - moon.y) - R_Moon) / 1000;
+            const days = Math.floor(simTime / 86400);
+            const hours = Math.floor((simTime % 86400) / 3600);
+
+            document.getElementById('earthAlt').innerText = `${Math.round(dE).toLocaleString()} km`;
+            document.getElementById('moonAlt').innerText = `${Math.round(dM).toLocaleString()} km`;
+            document.getElementById('missionTime').innerText = `T+ ${days}g ${hours}s`;
+
+            requestAnimationFrame(loop);
+        }
+        loop();
+    </script>
+</body>
+</html>
