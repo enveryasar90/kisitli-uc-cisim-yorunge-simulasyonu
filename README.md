@@ -58,7 +58,7 @@ Araç Ay'a 9.000 km yaklaştığında teğetsel hız vektörü tersine işletile
 
 ## 💻 Canlı Demo ve Çalıştırma
 
-* **Canlı Simülasyon:** `https://enveryasar90.github.io/kisitli-uc-cisim-yorunge-simulasyonu/`
+* **Canlı Simülasyon:** [Simülasyonu Başlatmak İçin Tıklayın](https://enveryasar90.github.io/kisitli-uc-cisim-yorunge-simulasyonu/)
 * **Yerel Çalıştırma:** Projeyi indirip `index.html` dosyasını herhangi bir web tarayıcısında çift tıklayarak açabilirsiniz.
 
 ---
