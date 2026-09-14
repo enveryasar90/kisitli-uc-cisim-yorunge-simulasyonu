@@ -1,0 +1,1 @@
+# kisitli-uc-cisim-yorunge-simulasyonu
